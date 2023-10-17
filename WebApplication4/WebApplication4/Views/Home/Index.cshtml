@@ -1,0 +1,134 @@
+﻿@{
+    ViewData["Title"] = "Home Page";
+}
+
+<div class="text-center">
+    <h1 class="display-4">COĞRAFİ BİLGİ SİSTEMİ</h1>
+  
+</div>
+
+<script src="~/lib/leaflet/leaflet.js"></script>
+<script src="~/lib/leaflet/leaflet.min.js"></script>
+<script src="~/lib/leaflet.draw/leaflet.draw.js"></script>
+<script src="~/lib/leaflet-ajax/leaflet.ajax.js"></script>
+<script src="~/lib/leaflet-ajax/leaflet.ajax.min.js"></script>
+<script src="~/lib/jquery/dist/jquery.min.js"></script>
+<script src="~/lib/jquery/dist/jquery.js"></script>
+
+<div class="text-center" id="map" style="width:100%; height:600px"></div>
+
+<script>
+    //Harita işlemleri
+    var map = L.map('map').setView([40.208526, 29.060965], 12);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map); 
+
+
+    //CollectApi kullanarak nöbetçi eczanelerimizi çekiyoruz.
+    var settings = {
+        "url": "https://api.collectapi.com/health/dutyPharmacy?il=Bursa",
+        "method": "GET",
+        "timeout": 0,
+        "headers": {
+            "authorization": "apikey 34T0SgbnLGvKIPLIdBv3ji:39NxzWOcrzZtEkFshgqhND"
+        },
+    };
+
+    $.ajax(settings).done(function (response) {
+        console.log(response);  //veriler console.log a geliyor
+        var veriler = response;
+
+        showDataOnMap(veriler);
+
+
+    });
+
+    
+    //marker olarak göstermek için veriyi işliyorum ama harita üzerinde gözükmüyor
+    function showDataOnMap(veriler) {
+        veriler.forEach(function (item) {
+            var loc = item.loc.split(',');
+            var popupContent = "<b>" + item.name + "</b><br>Address: " + item.address + "<br>Phone: " + item.phone;
+            L.marker([parseFloat(loc[0]), parseFloat(loc[1])]).addTo(map).bindPopup(popupContent);
+        });
+    }
+       
+    
+
+  
+    var drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+
+    var drawControl = new L.Control.Draw({
+        edit: {
+            featureGroup: drawnItems
+        }
+    });
+    map.addControl(drawControl);
+
+
+    map.on(L.Draw.Event.CREATED, function (e) {
+        var layer = e.layer;
+        drawnItems.addLayer(layer);
+
+        //Çizim verilerini al
+        var geoJSONData = layer.toGeoJSON();
+        console.log(geoJSONData); 
+        var coordinate = layer.toGeoJSON().geometry.coordinates;
+        
+    });
+
+
+
+    map.on('draw:edited', function () {
+
+        
+            
+        });
+
+    map.on('draw:deleted', function () {
+
+        
+    });
+
+
+        map.on('draw:created', function (e) {
+            var type = e.layerType,
+                layer = e.layer;
+
+            if (type === 'point') {
+                var coordinates = layer.toGeoJSON().geometry.coordinates;
+                saveDataToServer(coordinates.toGeoJSON());
+            }
+
+            if (type === 'marker') {
+                
+                var marker = L.marker(layer.getLatLng());
+                saveDataToServer(marker.toGeoJSON()); // Marker'ı JSON verisine dönüştürüp kaydetmek için
+            }
+
+            // Çizimi harita katmanına ekleyin
+           // drawnItems.addLayer(layer);
+        });
+
+
+        function saveDataToServer(data) {
+            $.ajax({
+                type: 'POST', 
+                url: '/api/save-data', 
+                data: JSON.stringify(data), 
+                contentType: 'application/json', 
+                success: function (response) {
+                    
+                    console.log('Veri başarıyla kaydedildi:', response);
+                },
+                error: function (error) {
+                    
+                    console.error('Veri kaydetme hatası:', error);
+                }
+            });
+        }
+
+    
+</script>
